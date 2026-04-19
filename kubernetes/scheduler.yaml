@@ -1,0 +1,44 @@
+# ---------------------------------------------------------
+# EL CRONJOB DEL SCHEDULER
+# ---------------------------------------------------------
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: scheduler-cronjob
+spec:
+  # El horario en formato Cron: "minuto hora día mes día_de_la_semana"
+  # "0 * * * *" significa: Ejecutar en el minuto 0 de CADA hora.
+  schedule: "0 * * * *"
+
+  # Evita que se abran 2 contenedores al mismo tiempo si uno se tarda mucho
+  concurrencyPolicy: Forbid
+
+  jobTemplate:
+    spec:
+      template:
+        spec:
+          containers:
+          - name: scheduler-bot
+            # Tu futura imagen en Docker Hub
+            image: eduardopuentec/scheduler:latest
+            env:
+            # Inyectamos las 3 variables que necesita desde los secretos
+            - name: SUPABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: florakube-secrets
+                  key: SUPABASE_URL
+            - name: SUPABASE_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: florakube-secrets
+                  key: SUPABASE_KEY
+            - name: TELEGRAM_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: florakube-secrets
+                  key: TELEGRAM_TOKEN
+
+          # ¡ESTA LÍNEA ES CLAVE!
+          # Le dice a Kubernetes: "Una vez que el script de Python termine, APAGA el contenedor".
+          restartPolicy: OnFailure

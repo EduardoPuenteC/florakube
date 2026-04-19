@@ -1,0 +1,51 @@
+# ---------------------------------------------------------
+# 1. EL DEPLOYMENT (Controla los contenedores)
+# ---------------------------------------------------------
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: api-inventario-deployment
+spec:
+  replicas: 1 # Cuántas copias de la API queremos corriendo al mismo tiempo
+  selector:
+    matchLabels:
+      app: api-inventario
+  template:
+    metadata:
+      labels:
+        app: api-inventario
+    spec:
+      containers:
+      - name: api-inventario
+        # Aquí pondremos el nombre de tu imagen cuando tengas Docker Hub
+        image: eduardopuentec/api_inventario:latest
+        ports:
+        - containerPort: 8000 # El puerto que expusimos en el Dockerfile
+        env:
+        # Aquí le inyectaremos de forma segura las credenciales después
+        - name: SUPABASE_URL
+          valueFrom:
+            secretKeyRef:
+              name: florakube-secrets
+              key: SUPABASE_URL
+        - name: SUPABASE_KEY
+          valueFrom:
+            secretKeyRef:
+              name: florakube-secrets
+              key: SUPABASE_KEY
+
+---
+# ---------------------------------------------------------
+# 2. EL SERVICE (Controla la red interna)
+# ---------------------------------------------------------
+apiVersion: v1
+kind: Service
+metadata:
+  name: api-inventario-service
+spec:
+  selector:
+    app: api-inventario
+  ports:
+    - protocol: TCP
+      port: 8000
+      targetPort: 8000

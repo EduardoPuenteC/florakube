@@ -1,0 +1,33 @@
+# ---------------------------------------------------------
+# EL DEPLOYMENT DEL BOT
+# ---------------------------------------------------------
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: dispatcher-bot-deployment
+spec:
+  replicas: 1 # Mantenemos 1 copia del bot escuchando
+  selector:
+    matchLabels:
+      app: dispatcher-bot
+  template:
+    metadata:
+      labels:
+        app: dispatcher-bot
+    spec:
+      containers:
+      - name: dispatcher-bot
+        # Tu futura imagen en Docker Hub
+        image: eduardopuentec/dispatcher:latest
+        # IMPORTANTE: Nota que aquí NO hay sección "ports:"
+        env:
+        # Inyectamos el token desde los secretos (los crearemos después)
+        - name: TELEGRAM_TOKEN
+          valueFrom:
+            secretKeyRef:
+              name: florakube-secrets
+              key: TELEGRAM_TOKEN
+
+        # ¡LA MAGIA DE KUBERNETES ESTÁ AQUÍ ABAJO!
+        - name: API_INVENTARIO_URL
+          value: "http://api-inventario-service:8000"
