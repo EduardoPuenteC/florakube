@@ -203,7 +203,17 @@ def manejar_botones(call):
             except Exception:
                 bot.send_message(chat_id, "❌ Error de conexión.")
 
+import signal
+import sys
+
+def handle_sigterm(signum, frame):
+    print("🛑 SIGTERM recibido, cerrando bot limpiamente...")
+    bot.stop_polling()
+    sys.exit(0)
+
+signal.signal(signal.SIGTERM, handle_sigterm)
+signal.signal(signal.SIGINT, handle_sigterm)
 
 if __name__ == '__main__':
     print("🤖 Dispatcher interactivo de Telegram iniciado...")
-    bot.infinity_polling()
+    bot.infinity_polling(timeout=10, long_polling_timeout=5)
