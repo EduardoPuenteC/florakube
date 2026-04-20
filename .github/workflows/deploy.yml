@@ -40,10 +40,7 @@ jobs:
           method: kubeconfig
           kubeconfig: ${{ secrets.KUBECONFIG_SECRET }}
 
-      - name: 🚀 Desplegar y Forzar Actualización
+      - name: 🤖 Construir y Subir Imagen del Bot (Dispatcher)
         run: |
-          kubectl set image deployment/api-inventario-deployment api-inventario=eduardopuentec/florakube-api:latest --record
-          kubectl set image deployment/dispatcher-bot-deployment dispatcher-bot=eduardopuentec/florakube-bot:latest --record
-
-          kubectl rollout restart deployment api-inventario-deployment
-          kubectl rollout restart deployment dispatcher-bot-deployment
+          docker build --no-cache -t eduardopuentec/florakube-bot:latest ./dispatcher
+          docker push eduardopuentec/florakube-bot:latest
