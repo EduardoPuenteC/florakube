@@ -142,3 +142,17 @@ def registrar_fertilizante(nombre_planta: str, accion: AccionPlanta):
         raise HTTPException(status_code=404, detail="Planta no encontrada en tu inventario")
         
     return {"mensaje": "Fertilizante registrado exitosamente", "fecha": ahora.isoformat()}
+
+@app.delete("/plantas/{nombre_planta}")
+def eliminar_planta(nombre_planta: str, telegram_id: int):
+    usuario = supabase.table("usuarios").select("id").eq("telegram_id", telegram_id).execute()
+    if not usuario.data:
+        raise HTTPException(status_code=404, detail="Usuario no encontrado")
+    user_id = usuario.data[0]["id"]
+
+    respuesta = supabase.table("plantas").delete().eq("nombre", nombre_planta).eq("usuario_id", user_id).execute()
+
+    if not respuesta.data:
+        raise HTTPException(status_code=404, detail="Planta no encontrada")
+
+    return {"mensaje": f"Planta '{nombre_planta}' eliminada exitosamente"}
