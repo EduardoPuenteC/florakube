@@ -1,6 +1,9 @@
 import os
 import telebot
 import requests
+import signal
+import sys
+import time
 from dotenv import load_dotenv
 from telebot.types import InlineKeyboardMarkup, InlineKeyboardButton
 
@@ -19,10 +22,8 @@ datos_temporales = {}
 # MENÚ PRINCIPAL
 # ==========================================
 def enviar_menu_principal(chat_id):
-    """Genera y envía el panel de control central"""
     markup = InlineKeyboardMarkup()
-    markup.row_width = 2 
-    
+    markup.row_width = 2
     markup.add(
         InlineKeyboardButton("🌱 Mis Plantas", callback_data="menu_misplantas"),
         InlineKeyboardButton("📊 Estado General", callback_data="menu_estado")
@@ -31,12 +32,11 @@ def enviar_menu_principal(chat_id):
         InlineKeyboardButton("➕ Agregar Planta", callback_data="menu_agregar"),
         InlineKeyboardButton("❓ Ayuda", callback_data="menu_ayuda")
     )
-    
     bot.send_message(chat_id, "🪴 *Panel de Control FloraKube*\n¿Qué deseas hacer hoy?", reply_markup=markup, parse_mode="Markdown")
 
 
 # ==========================================
-# LÓGICA CENTRAL (Separada para reusar)
+# LÓGICA CENTRAL
 # ==========================================
 def logica_misplantas(chat_id, telegram_id):
     bot.send_message(chat_id, "Consultando tu jardín virtual... 🔍")
@@ -47,22 +47,23 @@ def logica_misplantas(chat_id, telegram_id):
             if not plantas:
                 bot.send_message(chat_id, "Aún no tienes plantas registradas. ¡Usa el botón de Agregar! 🌱")
                 return
-            
+
             texto_respuesta = "🌿 *Selecciona una planta para cuidarla:*\n\n"
             markup = InlineKeyboardMarkup()
             markup.row_width = 2
-            
+
             for planta in plantas:
                 nombre = planta['nombre']
                 frecuencia = planta['frecuencia_riego']
                 texto_respuesta += f"🪴 *{nombre}* (Agua cada {frecuencia} días)\n"
-                
-                # Botones específicos para cada planta
                 markup.add(
                     InlineKeyboardButton(f"💧 Regar {nombre}", callback_data=f"regar_{nombre}"),
                     InlineKeyboardButton(f"✨ Abonar {nombre}", callback_data=f"abonar_{nombre}")
                 )
-                
+                markup.add(
+                    InlineKeyboardButton(f"🗑️ Eliminar {nombre}", callback_data=f"eliminar_{nombre}")
+                )
+
             bot.send_message(chat_id, texto_respuesta, parse_mode="Markdown", reply_markup=markup)
         else:
             bot.send_message(chat_id, "No te encuentro en el sistema o no tienes plantas.")
@@ -84,9 +85,9 @@ def logica_estado(chat_id, telegram_id):
                 texto_estado += f"🌱 *{p['nombre']}*\n"
                 texto_estado += f"   💧 Último riego: {p.get('ultimo_riego', 'Desconocido')}\n"
                 texto_estado += f"   ✨ Último abono: {p.get('ultimo_fertilizante', 'Nunca')}\n\n"
-            
+
             bot.send_message(chat_id, texto_estado, parse_mode="Markdown")
-            enviar_menu_principal(chat_id) # Volvemos a mostrar el menú al terminar
+            enviar_menu_principal(chat_id)
         else:
             bot.send_message(chat_id, "No se encontraron datos.")
     except Exception:
@@ -94,7 +95,7 @@ def logica_estado(chat_id, telegram_id):
 
 
 # ==========================================
-# RUTAS DE MENSAJES DE TEXTO (Entradas)
+# RUTAS DE MENSAJES DE TEXTO
 # ==========================================
 @bot.message_handler(commands=['start', 'menu'])
 def bienvenida_y_registro(mensaje):
@@ -110,9 +111,7 @@ def bienvenida_y_registro(mensaje):
         elif respuesta.status_code == 400:
             bot.send_message(chat_id, f"¡Qué bueno verte de nuevo, {nombre}! 🌿")
     except Exception:
-        pass # Ignoramos el error aquí para mostrar el menú de todos modos
-    
-    # Siempre mostramos el menú al final del start
+        pass
     enviar_menu_principal(chat_id)
 
 
@@ -147,11 +146,10 @@ def guardar_planta_en_api(mensaje):
             bot.send_message(chat_id, "Hubo un error al registrarla.")
     except Exception:
         bot.send_message(chat_id, "🚨 Error: La API está desconectada.")
-        
+
     if chat_id in datos_temporales:
         del datos_temporales[chat_id]
-        
-    enviar_menu_principal(chat_id) # Volvemos al menú
+    enviar_menu_principal(chat_id)
 
 
 # ==========================================
@@ -161,27 +159,19 @@ def guardar_planta_en_api(mensaje):
 def manejar_botones(call):
     chat_id = call.message.chat.id
     telegram_id = call.from_user.id
-    
-    # Quitamos el estado de "cargando" del botón en el celular
     bot.answer_callback_query(call.id)
 
-    # 1. Rutas del Menú Principal
     if call.data == "menu_misplantas":
         logica_misplantas(chat_id, telegram_id)
-        
     elif call.data == "menu_estado":
         logica_estado(chat_id, telegram_id)
-        
     elif call.data == "menu_agregar":
         msg = bot.send_message(chat_id, "¡Vamos a registrar una nueva planta! 🌿\n¿Cómo se llama? (Ej. Helecho, Cactus)")
         bot.register_next_step_handler(msg, preguntar_frecuencia)
-        
     elif call.data == "menu_ayuda":
         texto = "🌿 *Ayuda FloraKube*\nNavega usando los botones del `/menu`. Si en algún momento te pierdes, simplemente escribe `/menu` para volver a ver las opciones."
         bot.send_message(chat_id, texto, parse_mode="Markdown")
         enviar_menu_principal(chat_id)
-
-    # 2. Rutas de Acción de Plantas (Regar/Abonar)
     else:
         partes = call.data.split('_', 1)
         if len(partes) != 2: return
@@ -203,10 +193,21 @@ def manejar_botones(call):
             except Exception:
                 bot.send_message(chat_id, "❌ Error de conexión.")
 
-import signal
-import sys
-import time
+        elif accion == "eliminar":
+            try:
+                respuesta = requests.delete(f"{API_URL}/plantas/{nombre_planta}", params={"telegram_id": telegram_id})
+                if respuesta.status_code == 200:
+                    bot.send_message(chat_id, f"🗑️ *{nombre_planta}* ha sido eliminada de tu jardín.", parse_mode="Markdown")
+                else:
+                    bot.send_message(chat_id, "❌ No se pudo eliminar la planta.")
+            except Exception:
+                bot.send_message(chat_id, "❌ Error de conexión.")
+            enviar_menu_principal(chat_id)
 
+
+# ==========================================
+# MANEJO DE SEÑALES Y ARRANQUE
+# ==========================================
 def handle_sigterm(signum, frame):
     print("🛑 SIGTERM recibido, cerrando bot limpiamente...")
     bot.stop_polling()
