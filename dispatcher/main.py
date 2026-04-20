@@ -215,5 +215,12 @@ signal.signal(signal.SIGTERM, handle_sigterm)
 signal.signal(signal.SIGINT, handle_sigterm)
 
 if __name__ == '__main__':
+    import time
     print("🤖 Dispatcher interactivo de Telegram iniciado...")
-    bot.infinity_polling(timeout=10, long_polling_timeout=5)
+    while True:
+        try:
+            bot.infinity_polling(timeout=10, long_polling_timeout=5)
+        except Exception as e:
+            print(f"❌ Error: {e}")
+            print("⏳ Esperando 35 segundos...")
+            time.sleep(35)
